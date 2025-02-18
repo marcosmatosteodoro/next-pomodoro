@@ -1,9 +1,9 @@
 'use client'
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 
 export type TimeString = '00:00' | `${number}:${number}` | `${number}:0${number}`; // Formato "MM:SS"
-export type CycleType = 'not-started' | 'work' | 'break' | 'longBreak';
+export type CycleType = 'notStarted' | 'work' | 'break' | 'longBreak';
 
 export type PomodoroType = {
   time: TimeString,
@@ -20,7 +20,7 @@ export default function Home() {
   const [pomodoro, setPomodoro] = useState<PomodoroType>({
     time: '00:00',
     currentCycle: 0,
-    currentCycleType: 'not-started',
+    currentCycleType: 'notStarted',
     isPaused: false,
     isRunning: false,
     intervalId: null,
@@ -28,11 +28,24 @@ export default function Home() {
 
   const pauseAtEndRef = useRef<boolean>(pauseAtEnd);
 
-  const workTime = 1; // 50
-  const breakTime = 1; // 10
-  const longBreakTime = 1;  // 15
+  const workTime = 50; // 50
+  const breakTime = 10; // 10
+  const longBreakTime = 15;  // 15
   const workCycles = 2;
 
+  const titles = useMemo(() => ({
+    work: 'TRABALHE',
+    break: 'FAÇA UMA PAUSA',
+    longBreak: 'FAÇA UMA PAUSA LONGA',
+    notStarted: 'Pomodoro',
+  }), []);
+
+  const cycleTypeTime = {
+    notStarted: workTime,
+    work: workTime,
+    break: breakTime,
+    longBreak: longBreakTime,
+  };
 
   const startPomodoro = async () => {
     const newPomodoro = {
@@ -62,7 +75,7 @@ export default function Home() {
 
   const cancelPomodoro = () => {
     clearInterval(pomodoro.intervalId as NodeJS.Timeout);
-    setPomodoro({time: '00:00', currentCycle: 0, currentCycleType: 'not-started', isPaused: false, isRunning: false, intervalId: null});
+    setPomodoro({time: '00:00', currentCycle: 0, currentCycleType: 'notStarted', isPaused: false, isRunning: false, intervalId: null});
   };
 
   const pauseAtEndOfCyclePomodoro = () => {
@@ -74,18 +87,7 @@ export default function Home() {
   };
 
   const getCycleTypeTime = (): number => {
-    switch (pomodoro.currentCycleType) {
-      case 'not-started':
-        return workTime;
-      case 'work':
-        return workTime;
-      case 'break':
-        return breakTime;
-      case 'longBreak':
-        return longBreakTime;
-      default:
-        return 0;
-    }
+    return cycleTypeTime[pomodoro.currentCycleType] ?? 0;
   }
 
   const getNextCycleType = (pomodoro: PomodoroType): CycleType => {
@@ -98,25 +100,27 @@ export default function Home() {
     }
   }
 
-  useEffect(() => {
-    switch (pomodoro.currentCycleType) {
-      case 'work':
-        setTitle('TRABALHE');
-      break;
-
-      case 'break':
-        setTitle('FAÇA UMA PAUSA');
-      break;
-
-      case 'longBreak':
-        setTitle('FAÇA UMA PAUSA LONGA');
-      break;
-
-      default:
-        setTitle('Pomodoro');
-      break;
+  const playAudio = (currentCycleType: CycleType) => {
+    const audios = {
+      work: 'resource/spongebob-fail.mp3',
+      break: 'resource/ta-da_yrvBrlS.mp3',
+      longBreak: 'resource/yippeeeeeeeeeeeeee.mp3',
+      notStarted: 'resource/spongebob.mp3',
+      default: 'resource/ta-da_yrvBrlS.mp3',
     }
-  }, [pomodoro.currentCycleType]);
+
+    const audio = new Audio(audios[currentCycleType] ?? audios.default);
+
+    audio.play().catch(
+      error => console.error('Erro ao reproduzir áudio:', error)
+    );
+  };
+  
+
+  useEffect(() => {
+    const title = titles[pomodoro.currentCycleType] ?? 'Pomodoro';
+    setTitle(title);
+  }, [pomodoro.currentCycleType, titles]);
 
   useEffect(() => {
     pauseAtEndRef.current = pauseAtEnd;
@@ -140,9 +144,11 @@ export default function Home() {
       
       if(parseInt(minutes) >= cycleTime ) {
         currentPomodoro.currentCycleType = getNextCycleType(currentPomodoro)
-        currentPomodoro.currentCycle = currentPomodoro.currentCycleType == `longBreak` ? 0 : currentPomodoro.currentCycle + 1;
+        currentPomodoro.currentCycle = currentPomodoro.currentCycleType == 'longBreak' ? 0 : currentPomodoro.currentCycle + 1;
         newTime = '00:00';
         pauseNow = pauseAtEndRef.current;
+
+        playAudio(currentPomodoro.currentCycleType);
       } else if (seconds === '59') {
         newTime = `${parseInt(minutes) + 1}:00`;
       } else if (parseInt(seconds) < 9) {
